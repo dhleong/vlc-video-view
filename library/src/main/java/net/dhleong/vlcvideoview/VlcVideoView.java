@@ -11,6 +11,7 @@ import android.support.annotation.RequiresApi;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -49,6 +50,12 @@ public class VlcVideoView extends FrameLayout {
         void onPrepared(VlcVideoView view);
     }
 
+    public interface OnKeyInterceptListener {
+        /**
+         * Returns true if the key dispatch event should be consumed.
+         */
+        boolean onInterceptKeyEvent(KeyEvent event);
+    }
 
     static LibVLC vlcInstance;
 
@@ -80,6 +87,7 @@ public class VlcVideoView extends FrameLayout {
     OnCompletionListener onCompletion;
     OnErrorListener onError;
     OnPreparedListener onPrepared;
+    OnKeyInterceptListener onKeyIntercept;
 
     public VlcVideoView(Context context) {
         super(context);
@@ -122,6 +130,16 @@ public class VlcVideoView extends FrameLayout {
 
         // release all held resources
         release();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        final OnKeyInterceptListener onKeyIntercept = this.onKeyIntercept;
+        if (onKeyIntercept != null && onKeyIntercept.onInterceptKeyEvent(event)) {
+            return true;
+        }
+
+        return super.dispatchKeyEvent(event);
     }
 
     public boolean canSeek() {
@@ -178,6 +196,13 @@ public class VlcVideoView extends FrameLayout {
         onError = listener;
     }
 
+    public void setOnKeyInterceptListener(OnKeyInterceptListener listener) {
+        // we have to be focusable to intercept
+        setFocusable(listener != null);
+
+        onKeyIntercept = listener;
+    }
+
     public void setOnPreparedListener(OnPreparedListener listener) {
         onPrepared = listener;
     }
@@ -208,7 +233,13 @@ public class VlcVideoView extends FrameLayout {
     public void skip(long skipMillis) {
         MediaPlayer player = this.player;
         if (player != null) {
-            seekTo(player.getTime() + skipMillis);
+            long newTime = Math.min(
+                player.getLength(),
+                Math.max(
+                    0,
+                    player.getTime() + skipMillis)
+            );
+            seekTo(newTime);
         }
     }
 

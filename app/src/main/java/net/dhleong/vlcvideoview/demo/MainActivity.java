@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.Toast;
@@ -70,6 +71,26 @@ public class MainActivity
         videoView.setOnCompletionListener(this);
         videoView.setOnErrorListener(this);
         videoView.setOnPreparedListener(this);
+
+        // for AndroidTV or something:
+        videoView.setOnKeyInterceptListener(new VlcVideoView.OnKeyInterceptListener() {
+            @Override
+            public boolean onInterceptKeyEvent(KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    switch (event.getKeyCode()) {
+                    case KeyEvent.KEYCODE_DPAD_LEFT:
+                        Log.v(TAG, "BACK");
+                        videoView.skip(-5000);
+                        break;
+                    case KeyEvent.KEYCODE_DPAD_RIGHT:
+                        Log.v(TAG, "FORWARD");
+                        videoView.skip(5000);
+                        break;
+                    }
+                }
+                return false;
+            }
+        });
 
         final String[] URLS = {
             "http://archive.org/download/BigBuckBunny_328/BigBuckBunny.avi",
