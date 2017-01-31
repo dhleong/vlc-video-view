@@ -24,15 +24,47 @@ import org.videolan.libvlc.MediaPlayer;
 /**
  * @author dhleong
  */
-public class VlcVideoView extends FrameLayout
-    implements IVLCVout.Callback {
+public class VlcVideoView extends FrameLayout {
+    static final String TAG = "VlcVideoView";
+
+    public interface OnCompletionListener {
+        /**
+         * Called when the end of a media source
+         * is reached during playback
+         */
+        void onCompletion(VlcVideoView view);
+    }
+
+    public interface OnErrorListener {
+        /**
+         * Called to indicate an error
+         */
+        void onError(VlcVideoView view);
+    }
+
     static LibVLC vlcInstance;
+
+    private final IVLCVout.Callback vlcOutCallback = new IVLCVout.Callback() {
+        @Override
+        public void onNewLayout(IVLCVout vlcVout, int width, int height, int visibleWidth, int visibleHeight, int sarNum, int sarDen) {
+            VlcVideoView.this.onNewLayout(vlcVout, width, height, visibleWidth, visibleHeight, sarNum, sarDen);
+        }
+
+        @Override public void onSurfacesCreated(IVLCVout vlcVout) { }
+
+        @Override public void onSurfacesDestroyed(IVLCVout vlcVout) { }
+
+        @Override public void onHardwareAccelerationError(IVLCVout vlcVout) { }
+    };
 
     private MediaPlayer player;
 
     private FrameLayout surfaceContainer;
     private SurfaceView playerView;
     private SurfaceView subtitlesView;
+
+    OnCompletionListener onCompletion;
+    OnErrorListener onError;
 
     public VlcVideoView(Context context) {
         super(context);
@@ -77,86 +109,32 @@ public class VlcVideoView extends FrameLayout
         release();
     }
 
-    public void setVideoMrl(@NonNull String mrl) {
-        setMedia(new Media(getVlc(), mrl));
+    public boolean canSeek() {
+        MediaPlayer player = this.player;
+        return player != null && player.isSeekable();
     }
 
-    public void setVideoUri(@NonNull Uri uri) {
-        setMedia(new Media(getVlc(), uri));
-    }
-
-    private void setMedia(@NonNull final Media media) {
-        // release any existing player
-        release();
-
-        media.setEventListener(new Media.EventListener() {
-            @Override
-            public void onEvent(Media.Event event) {
-                switch (event.type) {
-                case Media.Event.DurationChanged:
-                    Log.d("VVV", "media.onDurationChanged: " + event.getParsedStatus());
-                    break;
-
-                case Media.Event.StateChanged:
-                    Log.d("VVV", "media.StateChanged: " + media.getState());
-                    break;
-
-                default:
-                    Log.i("VVV", "media.UNKNOWN: " + Integer.toHexString(event.type));
-                }
-            }
-        });
-
-        player = new MediaPlayer(media);
-        player.setEventListener(new MediaPlayer.EventListener() {
-            @Override
-            public void onEvent(MediaPlayer.Event event) {
-                // TODO: forward events so clients can do something with them
-                switch (event.type) {
-                case MediaPlayer.Event.Playing:
-                    Log.v("VVV", "mediaPlayer.PLAYING");
-                    break;
-
-                case MediaPlayer.Event.Paused:
-                    Log.v("VVV", "mediaPlayer.PAUSED");
-                    break;
-
-                case MediaPlayer.Event.EndReached:
-                    Log.v("VVV", "mediaPlayer.END_REACHED");
-                    break;
-
-                case MediaPlayer.Event.EncounteredError:
-                    Log.w("VVV", "mediaPlayer.ERROR");
-                    break;
-
-                case MediaPlayer.Event.Vout:
-                    Log.v("VVV", "mediaPlayer.VOUT");
-                    break;
-
-                case MediaPlayer.Event.Buffering:
-                case MediaPlayer.Event.TimeChanged:
-                case MediaPlayer.Event.PositionChanged:
-                    break;
-
-                default:
-                    Log.v("VVV", "mediaPlayer.UNKNOWN? " + Integer.toHexString(event.type));
-                }
-            }
-        });
-
-        IVLCVout vlcOut = player.getVLCVout();
-        if (vlcOut.areViewsAttached()) {
-            player.stop();
-            vlcOut.detachViews();
+    /** @return in milliseconds */
+    public long getCurrentPosition() {
+        MediaPlayer player = this.player;
+        if (player == null) {
+            return 0;
         }
+        return player.getTime();
+    }
 
-        vlcOut.addCallback(this);
+    /** @return in milliseconds */
+    public long getDuration() {
+        MediaPlayer player = this.player;
+        if (player == null) {
+            return 0;
+        }
+        return player.getLength();
+    }
 
-        vlcOut.setVideoView(playerView);
-        vlcOut.setSubtitlesView(subtitlesView);
-        vlcOut.attachViews();
-        player.setVideoTrackEnabled(true);
-        player.play();
+    public boolean isPlaying() {
+        MediaPlayer player = this.player;
+        return player != null && player.isPlaying();
     }
 
     public void play() {
@@ -173,22 +151,36 @@ public class VlcVideoView extends FrameLayout
         }
     }
 
+    public void setOnCompletionListener(OnCompletionListener listener) {
+        onCompletion = listener;
+    }
+
+    public void setOnErrorListener(OnErrorListener listener) {
+        onError = listener;
+    }
+
+    public void setVideoMrl(@NonNull String mrl) {
+        setMedia(new Media(getVlc(), mrl));
+    }
+
+    public void setVideoUri(@NonNull Uri uri) {
+        setMedia(new Media(getVlc(), uri));
+    }
+
     /**
      * Skip some number of millis; may be negative
-     * @param skipMillis
      */
     public void skip(long skipMillis) {
         MediaPlayer player = this.player;
         if (player != null) {
-            setTime(player.getTime() + skipMillis);
+            seekTo(player.getTime() + skipMillis);
         }
     }
 
     /**
      * Jump to a specific time in millis
-     * @param timeInMillis
      */
-    public void setTime(long timeInMillis) {
+    public void seekTo(long timeInMillis) {
         MediaPlayer player = this.player;
         if (player != null) {
             player.setTime(timeInMillis);
@@ -217,20 +209,18 @@ public class VlcVideoView extends FrameLayout
         this.player = null;
     }
 
-    @Override
-    public void onNewLayout(IVLCVout vlcVout,
+    void onNewLayout(IVLCVout vlcVout,
             int width, int height,
             int visibleWidth, int visibleHeight,
             int specifiedAspectNumerator,
             int specifiedAspectDenominator) {
-        Log.v("VVV", "*** NEW LAYOUT!!! " + width + "x" + height);
         View decorView = getDecorView();
         int screenWidth = decorView.getWidth();
         int screenHeight = decorView.getHeight();
 
         // sanity check
         if (screenWidth * screenHeight == 0) {
-            Log.e("VVV", "Unexpected screen size: " + screenWidth + "x" + screenHeight);
+            Log.e(TAG, "Unexpected screen size: " + screenWidth + "x" + screenHeight);
             return;
         }
 
@@ -288,20 +278,68 @@ public class VlcVideoView extends FrameLayout
         surfaceContainer.setLayoutParams(surfaceParams);
     }
 
-    @Override
-    public void onSurfacesCreated(IVLCVout vlcVout) {
-        // nop
+    private void setMedia(@NonNull final Media media) {
+        // release any existing player
+        release();
+
+        player = new MediaPlayer(media);
+        player.setEventListener(new MediaPlayer.EventListener() {
+            @Override
+            public void onEvent(MediaPlayer.Event event) {
+                // TODO: forward events so clients can do something with them
+                final VlcVideoView thisView = VlcVideoView.this;
+                switch (event.type) {
+                case MediaPlayer.Event.Playing:
+                    Log.v(TAG, "mediaPlayer.PLAYING");
+                    break;
+
+                case MediaPlayer.Event.Paused:
+                    Log.v(TAG, "mediaPlayer.PAUSED");
+                    break;
+
+                case MediaPlayer.Event.EndReached:
+                    final OnCompletionListener onCompletion = thisView.onCompletion;
+                    if (onCompletion != null) {
+                        onCompletion.onCompletion(thisView);
+                    }
+                    break;
+
+                case MediaPlayer.Event.EncounteredError:
+                    final OnErrorListener onError = thisView.onError;
+                    if (onError != null) {
+                        onError.onError(thisView);
+                    } else {
+                        Log.w(TAG, "Encountered Error!");
+                    }
+                    break;
+
+                case MediaPlayer.Event.Buffering:
+                case MediaPlayer.Event.TimeChanged:
+                case MediaPlayer.Event.PositionChanged:
+                    break;
+
+                default:
+                    Log.v(TAG, "mediaPlayer.UNKNOWN? " + Integer.toHexString(event.type));
+                }
+            }
+        });
+
+        IVLCVout vlcOut = player.getVLCVout();
+        if (vlcOut.areViewsAttached()) {
+            player.stop();
+            vlcOut.detachViews();
+        }
+
+        vlcOut.addCallback(vlcOutCallback);
+
+        vlcOut.setVideoView(playerView);
+        vlcOut.setSubtitlesView(subtitlesView);
+        vlcOut.attachViews();
+
+        player.setVideoTrackEnabled(true);
+        player.play();
     }
 
-    @Override
-    public void onSurfacesDestroyed(IVLCVout vlcVout) {
-        // nop
-    }
-
-    @Override
-    public void onHardwareAccelerationError(IVLCVout vlcVout) {
-        // nop
-    }
 
     private @Nullable Activity getActivity() {
         Context context = getContext();
