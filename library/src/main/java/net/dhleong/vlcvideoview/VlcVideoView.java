@@ -1,13 +1,19 @@
 package net.dhleong.vlcvideoview;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import org.videolan.libvlc.IVLCVout;
@@ -18,11 +24,13 @@ import org.videolan.libvlc.MediaPlayer;
 /**
  * @author dhleong
  */
-public class VlcVideoView extends FrameLayout {
+public class VlcVideoView extends FrameLayout
+    implements IVLCVout.Callback {
     static LibVLC vlcInstance;
 
     private MediaPlayer player;
 
+    private FrameLayout surfaceContainer;
     private SurfaceView playerView;
     private SurfaceView subtitlesView;
 
@@ -48,8 +56,17 @@ public class VlcVideoView extends FrameLayout {
     }
 
     private void init(Context context) {
-        addView(playerView = new SurfaceView(context));
-        addView(subtitlesView = new SurfaceView(context));
+        FrameLayout surfaceFrame = surfaceContainer = new FrameLayout(context);
+        surfaceFrame.setForegroundGravity(Gravity.CLIP_HORIZONTAL | Gravity.CLIP_VERTICAL);
+
+        surfaceFrame.addView(playerView = new SurfaceView(context));
+        surfaceFrame.addView(subtitlesView = new SurfaceView(context));
+
+        addView(surfaceFrame, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            Gravity.CENTER
+        ));
     }
 
     @Override
@@ -94,6 +111,7 @@ public class VlcVideoView extends FrameLayout {
         player.setEventListener(new MediaPlayer.EventListener() {
             @Override
             public void onEvent(MediaPlayer.Event event) {
+                // TODO: forward events so clients can do something with them
                 switch (event.type) {
                 case MediaPlayer.Event.Playing:
                     Log.v("VVV", "mediaPlayer.PLAYING");
@@ -131,6 +149,8 @@ public class VlcVideoView extends FrameLayout {
             player.stop();
             vlcOut.detachViews();
         }
+
+        vlcOut.addCallback(this);
 
         vlcOut.setVideoView(playerView);
         vlcOut.setSubtitlesView(subtitlesView);
@@ -195,6 +215,114 @@ public class VlcVideoView extends FrameLayout {
         }
 
         this.player = null;
+    }
+
+    @Override
+    public void onNewLayout(IVLCVout vlcVout,
+            int width, int height,
+            int visibleWidth, int visibleHeight,
+            int specifiedAspectNumerator,
+            int specifiedAspectDenominator) {
+        Log.v("VVV", "*** NEW LAYOUT!!! " + width + "x" + height);
+        View decorView = getDecorView();
+        int screenWidth = decorView.getWidth();
+        int screenHeight = decorView.getHeight();
+
+        // sanity check
+        if (screenWidth * screenHeight == 0) {
+            Log.e("VVV", "Unexpected screen size: " + screenWidth + "x" + screenHeight);
+            return;
+        }
+
+        vlcVout.setWindowSize(screenWidth, screenHeight);
+
+        if (width * height == 0) {
+            // vlc is handling it internally; we do nothing
+            ViewGroup.LayoutParams playerParams = playerView.getLayoutParams();
+            playerParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            playerParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            playerView.setLayoutParams(playerParams);
+
+            ViewGroup.LayoutParams containerParams = surfaceContainer.getLayoutParams();
+            containerParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            containerParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            surfaceContainer.setLayoutParams(containerParams);
+            return;
+        }
+
+        // okay, we're in charge
+        // compute the aspect ratio
+        float videoWidth;
+        if (specifiedAspectNumerator == specifiedAspectDenominator) {
+            // no indication about the density, assuming 1:1
+            videoWidth = visibleWidth;
+        } else {
+            // use the specified aspect ratio
+            videoWidth = visibleWidth *
+                 specifiedAspectNumerator /
+                    (float) specifiedAspectDenominator;
+        }
+        float aspect = videoWidth / (float) visibleHeight;
+
+        // compute display aspect ratio
+        float floatScreenWidth = screenWidth;
+        float floatScreenHeight = screenHeight;
+        float displayAspect = floatScreenWidth / floatScreenHeight;
+        if (displayAspect < aspect) {
+            floatScreenHeight = floatScreenWidth / aspect;
+        } else {
+            floatScreenWidth = floatScreenHeight * aspect;
+        }
+
+        // set display size
+        ViewGroup.LayoutParams playerParams = playerView.getLayoutParams();
+        playerParams.width = (int) Math.ceil(floatScreenWidth * width / (float) visibleWidth);
+        playerParams.height = (int) Math.ceil(floatScreenHeight * height / (float) visibleHeight);
+        playerView.setLayoutParams(playerParams);
+        subtitlesView.setLayoutParams(playerParams);
+
+        // set frame size (crop if necessary)
+        ViewGroup.LayoutParams surfaceParams = surfaceContainer.getLayoutParams();
+        surfaceParams.width = (int) Math.floor(floatScreenWidth);
+        surfaceParams.height = (int) Math.floor(floatScreenHeight);
+        surfaceContainer.setLayoutParams(surfaceParams);
+    }
+
+    @Override
+    public void onSurfacesCreated(IVLCVout vlcVout) {
+        // nop
+    }
+
+    @Override
+    public void onSurfacesDestroyed(IVLCVout vlcVout) {
+        // nop
+    }
+
+    @Override
+    public void onHardwareAccelerationError(IVLCVout vlcVout) {
+        // nop
+    }
+
+    private @Nullable Activity getActivity() {
+        Context context = getContext();
+        while (context instanceof ContextWrapper) {
+            if (context instanceof Activity) {
+                return (Activity) context;
+            }
+
+            context = ((ContextWrapper) context).getBaseContext();
+        }
+
+        return null;
+    }
+
+    private View getDecorView() {
+        Activity act = getActivity();
+        if (act != null) {
+            return act.getWindow().getDecorView();
+        }
+
+        throw new IllegalStateException("Couldn't get DecorView");
     }
 
     LibVLC getVlc() {

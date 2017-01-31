@@ -11,7 +11,7 @@ class VLCOptions {
     private static int networkCaching = 20000;
 
     static ArrayList<String> get() {
-        ArrayList<String> options = new ArrayList<>(50);
+        ArrayList<String> options = new ArrayList<>(8);
 
         if (networkCaching > 0) {
             options.add("--network-caching=" + networkCaching);

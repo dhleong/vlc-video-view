@@ -100,8 +100,10 @@ public class MainActivity extends AppCompatActivity {
         mContentView = findViewById(R.id.fullscreen_content);
         mVideoView = (VlcVideoView) mContentView;
 
-        mVideoView.setVideoUri(Uri.parse(
-            "http://archive.org/download/BigBuckBunny_328/BigBuckBunny.avi"));
+        String url =
+//            "http://archive.org/download/BigBuckBunny_328/BigBuckBunny.avi";
+            "smb://egwene/MOVIES/Gintama/Gintama%20-%2001&02.avi";
+        mVideoView.setVideoUri(Uri.parse(url));
 //        mVideoView.setVideoUri(Uri.parse(
 //            "http://commondatastorage.googleapis.com/android-tv/" +
 //            "Sample%20videos/Demo%20Slam/Google%20Demo%20Slam_%2020ft%20Search.mp4"));
