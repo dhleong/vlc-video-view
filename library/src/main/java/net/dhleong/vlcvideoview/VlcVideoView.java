@@ -42,6 +42,14 @@ public class VlcVideoView extends FrameLayout {
         void onError(VlcVideoView view);
     }
 
+    public interface OnPreparedListener {
+        /**
+         * Called to indicate an error
+         */
+        void onPrepared(VlcVideoView view);
+    }
+
+
     static LibVLC vlcInstance;
 
     private final IVLCVout.Callback vlcOutCallback = new IVLCVout.Callback() {
@@ -57,7 +65,13 @@ public class VlcVideoView extends FrameLayout {
         @Override public void onHardwareAccelerationError(IVLCVout vlcVout) { }
     };
 
+    static final int STATE_IDLE = 0;
+    static final int STATE_LOADING = 1;
+    static final int STATE_PLAY_ON_LOAD = 2;
+    static final int STATE_PLAYBACK = 3;
+
     private MediaPlayer player;
+    int state = STATE_IDLE;
 
     private FrameLayout surfaceContainer;
     private SurfaceView playerView;
@@ -65,6 +79,7 @@ public class VlcVideoView extends FrameLayout {
 
     OnCompletionListener onCompletion;
     OnErrorListener onError;
+    OnPreparedListener onPrepared;
 
     public VlcVideoView(Context context) {
         super(context);
@@ -139,8 +154,12 @@ public class VlcVideoView extends FrameLayout {
 
     public void play() {
         MediaPlayer player = this.player;
-        if (player != null && !player.isPlaying()) {
+        if (player != null) {
             player.play();
+
+            if (state == STATE_LOADING) {
+                state = STATE_PLAY_ON_LOAD;
+            }
         }
     }
 
@@ -159,10 +178,26 @@ public class VlcVideoView extends FrameLayout {
         onError = listener;
     }
 
+    public void setOnPreparedListener(OnPreparedListener listener) {
+        onPrepared = listener;
+    }
+
+    /**
+     * @param mrl A VLC MRL
+     * @see #setVideoUri(Uri)
+     */
     public void setVideoMrl(@NonNull String mrl) {
         setMedia(new Media(getVlc(), mrl));
     }
 
+    /**
+     * Set the Uri for a video to load. To start
+     * playing as soon as the video is prepared,
+     * just call {@link #play()} immediately after
+     * calling this method. You can also listen
+     * for the video prepared event via
+     * {@link #setOnPreparedListener(OnPreparedListener)}
+     */
     public void setVideoUri(@NonNull Uri uri) {
         setMedia(new Media(getVlc(), uri));
     }
@@ -207,6 +242,7 @@ public class VlcVideoView extends FrameLayout {
         }
 
         this.player = null;
+        state = STATE_IDLE;
     }
 
     void onNewLayout(IVLCVout vlcVout,
@@ -282,21 +318,14 @@ public class VlcVideoView extends FrameLayout {
         // release any existing player
         release();
 
+        state = STATE_LOADING;
+
         player = new MediaPlayer(media);
         player.setEventListener(new MediaPlayer.EventListener() {
             @Override
             public void onEvent(MediaPlayer.Event event) {
-                // TODO: forward events so clients can do something with them
                 final VlcVideoView thisView = VlcVideoView.this;
                 switch (event.type) {
-                case MediaPlayer.Event.Playing:
-                    Log.v(TAG, "mediaPlayer.PLAYING");
-                    break;
-
-                case MediaPlayer.Event.Paused:
-                    Log.v(TAG, "mediaPlayer.PAUSED");
-                    break;
-
                 case MediaPlayer.Event.EndReached:
                     final OnCompletionListener onCompletion = thisView.onCompletion;
                     if (onCompletion != null) {
@@ -313,13 +342,27 @@ public class VlcVideoView extends FrameLayout {
                     }
                     break;
 
-                case MediaPlayer.Event.Buffering:
                 case MediaPlayer.Event.TimeChanged:
-                case MediaPlayer.Event.PositionChanged:
-                    break;
+                    // NOTE: There's no explicit "prepared" event, and
+                    //  sometimes Playing gets emitted before it actually
+                    //  is (see the BigBuckBunny video). So, our little hack
+                    //  is to use the first TimeChanged event
+                    if (state == STATE_LOADING) {
+                        // wait until they want to play
+                        thisView.pause();
+                    }
 
-                default:
-                    Log.v(TAG, "mediaPlayer.UNKNOWN? " + Integer.toHexString(event.type));
+                    if (state != STATE_PLAYBACK) {
+                        state = STATE_PLAYBACK;
+
+                        final OnPreparedListener onPrepared = thisView.onPrepared;
+                        if (onPrepared != null) {
+                            onPrepared.onPrepared(thisView);
+                        } else {
+                            Log.v(TAG, "onPrepared");
+                        }
+                    }
+                    break;
                 }
             }
         });

@@ -8,6 +8,7 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import net.dhleong.vlcvideoview.VlcVideoView;
@@ -19,7 +20,8 @@ import net.dhleong.vlcvideoview.VlcVideoView;
 public class MainActivity
         extends AppCompatActivity
         implements VlcVideoView.OnCompletionListener,
-                   VlcVideoView.OnErrorListener {
+                   VlcVideoView.OnErrorListener,
+                   VlcVideoView.OnPreparedListener {
 
     static final String TAG = "VVV-Demo";
 
@@ -54,17 +56,20 @@ public class MainActivity
         }
     };
 
+    ProgressBar loading;
+    VlcVideoView videoView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_main);
 
-        final VlcVideoView videoView = (VlcVideoView) findViewById(R.id.video);
-        mContentView = videoView;
+        loading = (ProgressBar) findViewById(R.id.loading);
+        mContentView = videoView = (VlcVideoView) findViewById(R.id.video);
 
         videoView.setOnCompletionListener(this);
         videoView.setOnErrorListener(this);
+        videoView.setOnPreparedListener(this);
 
         final String[] URLS = {
             "http://archive.org/download/BigBuckBunny_328/BigBuckBunny.avi",
@@ -72,6 +77,7 @@ public class MainActivity
                 "Sample%20videos/Demo%20Slam/Google%20Demo%20Slam_%2020ft%20Search.mp4"
         };
 
+        // start loading; we'll hit "play" when it's prepared
         videoView.setVideoUri(Uri.parse(URLS[1]));
     }
 
@@ -95,6 +101,13 @@ public class MainActivity
     public void onError(VlcVideoView view) {
         Toast.makeText(view.getContext(), "*** ERROR!!!", Toast.LENGTH_LONG).show();
         Log.e(TAG, "*** ERROR!");
+    }
+
+    @Override
+    public void onPrepared(VlcVideoView view) {
+        Log.v(TAG, "PREPARED!");
+        loading.setVisibility(View.GONE);
+        videoView.play();
     }
 
     private void hide() {
