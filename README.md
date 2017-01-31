@@ -29,4 +29,4 @@ included in any layout as usual. See the [demo app][3] for a usage example.
 
 [1]: https://github.com/mrmaffen/vlc-android-sdk
 [2]: https://jitpack.io
-[3]: blob/master/app/src/main/java/net/dhleong/vlcvideoview/demo/MainActivity.java
+[3]: app/src/main/java/net/dhleong/vlcvideoview/demo/MainActivity.java
