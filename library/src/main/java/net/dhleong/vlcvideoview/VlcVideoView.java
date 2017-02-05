@@ -22,6 +22,9 @@ import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * @author dhleong
  */
@@ -212,20 +215,40 @@ public class VlcVideoView extends FrameLayout {
      * @see #setVideoUri(Uri)
      */
     public void setVideoMrl(@NonNull String mrl) {
-        setMedia(new Media(getVlc(), mrl));
+        setVideoMrl(mrl, Collections.<String>emptyList());
     }
 
     /**
-     * Set the Uri for a video to load. To start
-     * playing as soon as the video is prepared,
+     * @param mrl A VLC MRL
+     * @see #setVideoUri(Uri)
+     * @see #setVideoUri(Uri, List)
+     */
+    public void setVideoMrl(@NonNull String mrl, List<String> options) {
+        setMedia(new Media(getVlc(), mrl), options);
+    }
+
+    /**
+     * @see #setVideoUri(Uri, List)
+     */
+    public void setVideoUri(@NonNull Uri uri) {
+        setVideoUri(uri, Collections.<String>emptyList());
+    }
+
+    /**
+     * Set the Uri for a video to load, optionally with
+     *  some VLC-specific options. These are colon-prefixed
+     *  options that would normally be passed on as cli args.
+     *
+     * To start playing as soon as the video is prepared,
      * just call {@link #play()} immediately after
      * calling this method. You can also listen
      * for the video prepared event via
      * {@link #setOnPreparedListener(OnPreparedListener)}
      */
-    public void setVideoUri(@NonNull Uri uri) {
-        setMedia(new Media(getVlc(), uri));
+    public void setVideoUri(@NonNull Uri uri, List<String> options) {
+        setMedia(new Media(getVlc(), uri), options);
     }
+
 
     /**
      * Skip some number of millis; may be negative
@@ -345,9 +368,13 @@ public class VlcVideoView extends FrameLayout {
         surfaceContainer.setLayoutParams(surfaceParams);
     }
 
-    private void setMedia(@NonNull final Media media) {
+    private void setMedia(@NonNull final Media media, List<String> options) {
         // release any existing player
         release();
+
+        for (String opt : options) {
+            media.addOption(opt);
+        }
 
         state = STATE_LOADING;
 

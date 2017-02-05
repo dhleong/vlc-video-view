@@ -14,6 +14,8 @@ import android.widget.Toast;
 
 import net.dhleong.vlcvideoview.VlcVideoView;
 
+import java.util.Collections;
+
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
  * status bar and navigation/system bar) with user interaction.
@@ -99,7 +101,9 @@ public class MainActivity
         };
 
         // start loading; we'll hit "play" when it's prepared
-        videoView.setVideoUri(Uri.parse(URLS[1]));
+        videoView.setVideoUri(Uri.parse(URLS[0]),
+            // this option lets us start at a specific time (in seconds)
+            Collections.singletonList(":start-time=60"));
     }
 
     @Override
