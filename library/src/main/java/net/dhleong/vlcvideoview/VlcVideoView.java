@@ -378,7 +378,8 @@ public class VlcVideoView extends FrameLayout {
 
         state = STATE_LOADING;
 
-        player = new MediaPlayer(media);
+        player = new MediaPlayer(getVlc());
+        player.setMedia(media);
         player.setEventListener(new MediaPlayer.EventListener() {
             @Override
             public void onEvent(MediaPlayer.Event event) {
