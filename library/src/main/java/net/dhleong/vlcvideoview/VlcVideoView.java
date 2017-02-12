@@ -471,6 +471,6 @@ public class VlcVideoView extends FrameLayout {
         // should we cache this?
         return vlcInstance = new LibVLC(
             getContext().getApplicationContext(),
-            VLCOptions.get());
+            VlcOptions.get());
     }
 }
