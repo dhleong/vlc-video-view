@@ -24,7 +24,7 @@ public class MainActivity
         extends AppCompatActivity
         implements VlcVideoView.OnCompletionListener,
                    VlcVideoView.OnErrorListener,
-                   VlcVideoView.OnPreparedListener {
+                   VlcVideoView.OnPreparedListener, VlcVideoView.OnLoadingStateChangedListener {
 
     static final String TAG = "VVV-Demo";
 
@@ -73,6 +73,7 @@ public class MainActivity
         videoView.setOnCompletionListener(this);
         videoView.setOnErrorListener(this);
         videoView.setOnPreparedListener(this);
+        videoView.setOnLoadStateChangedListener(this);
 
         // for AndroidTV or something:
         videoView.setOnKeyInterceptListener(new VlcVideoView.OnKeyInterceptListener() {
@@ -133,6 +134,11 @@ public class MainActivity
         Log.v(TAG, "PREPARED!");
         loading.setVisibility(View.GONE);
         videoView.play();
+    }
+
+    @Override
+    public void onLoadingStateChanged(VlcVideoView view, boolean isLoading) {
+        loading.setVisibility(isLoading ? View.VISIBLE : View.GONE);
     }
 
     private void hide() {

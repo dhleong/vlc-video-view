@@ -48,9 +48,19 @@ public class VlcVideoView extends FrameLayout {
 
     public interface OnPreparedListener {
         /**
-         * Called to indicate an error
+         * Called when the video is loaded and ready to play
          */
         void onPrepared(VlcVideoView view);
+    }
+
+    public interface OnLoadingStateChangedListener {
+
+        /**
+         * Called when the video's loading status changed,
+         *  for example when you seek forward or backward
+         *  and it has to buffer
+         */
+        void onLoadingStateChanged(VlcVideoView view, boolean isLoading);
     }
 
     public interface OnKeyInterceptListener {
@@ -79,6 +89,8 @@ public class VlcVideoView extends FrameLayout {
     static final int STATE_LOADING = 1;
     static final int STATE_PLAY_ON_LOAD = 2;
     static final int STATE_PLAYBACK = 3;
+    static final int STATE_BUFFER = 4;
+    static final int STATE_SEEK = 5;
 
     private MediaPlayer player;
     int state = STATE_IDLE;
@@ -89,8 +101,17 @@ public class VlcVideoView extends FrameLayout {
 
     OnCompletionListener onCompletion;
     OnErrorListener onError;
-    OnPreparedListener onPrepared;
     OnKeyInterceptListener onKeyIntercept;
+    OnLoadingStateChangedListener onLoadingStateChangedListener;
+    OnPreparedListener onPrepared;
+
+    final Runnable dispatchNotLoadingRunnable = new Runnable() {
+        @Override
+        public void run() {
+            state = STATE_PLAYBACK;
+            notifyLoading(false);
+        }
+    };
 
     public VlcVideoView(Context context) {
         super(context);
@@ -206,6 +227,10 @@ public class VlcVideoView extends FrameLayout {
         onKeyIntercept = listener;
     }
 
+    public void setOnLoadStateChangedListener(OnLoadingStateChangedListener listener) {
+        onLoadingStateChangedListener = listener;
+    }
+
     public void setOnPreparedListener(OnPreparedListener listener) {
         onPrepared = listener;
     }
@@ -272,6 +297,10 @@ public class VlcVideoView extends FrameLayout {
     public void seekTo(long timeInMillis) {
         MediaPlayer player = this.player;
         if (player != null) {
+            if (state != STATE_SEEK) {
+                state = STATE_SEEK;
+                notifyLoading(true);
+            }
             player.setTime(timeInMillis);
         }
     }
@@ -392,6 +421,13 @@ public class VlcVideoView extends FrameLayout {
                     }
                     break;
 
+                case MediaPlayer.Event.Buffering:
+                    if (state == STATE_PLAYBACK) {
+                        state = STATE_BUFFER;
+                        notifyLoading(true);
+                    }
+                    break;
+
                 case MediaPlayer.Event.EncounteredError:
                     final OnErrorListener onError = thisView.onError;
                     if (onError != null) {
@@ -411,7 +447,7 @@ public class VlcVideoView extends FrameLayout {
                         thisView.pause();
                     }
 
-                    if (state != STATE_PLAYBACK) {
+                    if (state < STATE_PLAYBACK) {
                         state = STATE_PLAYBACK;
 
                         final OnPreparedListener onPrepared = thisView.onPrepared;
@@ -420,6 +456,13 @@ public class VlcVideoView extends FrameLayout {
                         } else {
                             Log.v(TAG, "onPrepared");
                         }
+                    } else if (state == STATE_BUFFER) {
+                        removeCallbacks(dispatchNotLoadingRunnable);
+                        postDelayed(dispatchNotLoadingRunnable, 150);
+                    } else if (state == STATE_SEEK) {
+                        // this event was just a direct result of the seek;
+                        //  now we buffer
+                        state = STATE_BUFFER;
                     }
                     break;
                 }
@@ -473,5 +516,12 @@ public class VlcVideoView extends FrameLayout {
         return vlcInstance = new LibVLC(
             getContext().getApplicationContext(),
             VlcOptions.get());
+    }
+
+    void notifyLoading(boolean isLoading) {
+        removeCallbacks(dispatchNotLoadingRunnable);
+        if (onLoadingStateChangedListener != null) {
+            onLoadingStateChangedListener.onLoadingStateChanged(this, isLoading);
+        }
     }
 }
