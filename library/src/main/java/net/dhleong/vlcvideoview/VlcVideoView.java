@@ -457,6 +457,7 @@ public class VlcVideoView extends FrameLayout {
                             Log.v(TAG, "onPrepared");
                         }
                     } else if (state == STATE_BUFFER) {
+                        state = STATE_PLAYBACK;
                         removeCallbacks(dispatchNotLoadingRunnable);
                         postDelayed(dispatchNotLoadingRunnable, 150);
                     } else if (state == STATE_SEEK) {
