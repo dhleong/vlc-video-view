@@ -227,7 +227,7 @@ public class VlcVideoView extends FrameLayout {
         onKeyIntercept = listener;
     }
 
-    public void setOnLoadStateChangedListener(OnLoadingStateChangedListener listener) {
+    public void setOnLoadingStateChangedListener(OnLoadingStateChangedListener listener) {
         onLoadingStateChangedListener = listener;
     }
 
