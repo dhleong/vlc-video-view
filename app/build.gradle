@@ -1,14 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 25
-    buildToolsVersion "25.0.2"
+    compileSdkVersion andConf.sdk
+
     defaultConfig {
         applicationId "net.dhleong.vlcvideoview.demo"
-        minSdkVersion 19
-        targetSdkVersion 25
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion andConf.minSdk
+        targetSdkVersion andConf.sdk
+        versionCode andConf.versionCode
+        versionName andConf.versionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -20,12 +20,12 @@ android {
 }
 
 dependencies {
-    compile project(':library')
+    implementation project(':library')
 
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:25.1.1'
-    compile 'com.android.support:support-v4:25.1.1'
-    testCompile 'junit:junit:4.12'
+    implementation 'com.android.support:appcompat-v7:27.1.1'
+    implementation 'com.android.support:support-v4:27.1.1'
+    testImplementation 'junit:junit:4.12'
 }
