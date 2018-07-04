@@ -3,6 +3,7 @@ package net.dhleong.vlcvideoview;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.NonNull;
@@ -72,6 +73,14 @@ public class VlcVideoView extends FrameLayout {
 
     static LibVLC vlcInstance;
 
+//    private final IVLCVout.OnNewVideoLayoutListener videoLayoutListener = new IVLCVout.OnNewVideoLayoutListener() {
+//        @Override
+//        public void onNewVideoLayout(IVLCVout vlcVout, int width, int height, int visibleWidth, int visibleHeight, int sarNum, int sarDen) {
+//            Log.v("VLCView", "onNewVideoLayout");
+//            VlcVideoView.this.onNewLayout(vlcVout, width, height, visibleWidth, visibleHeight, sarNum, sarDen);
+//        }
+//    };
+
     private final IVLCVout.Callback vlcOutCallback = new IVLCVout.Callback() {
         @Override
         public void onNewLayout(IVLCVout vlcVout, int width, int height, int visibleWidth, int visibleHeight, int sarNum, int sarDen) {
@@ -104,6 +113,8 @@ public class VlcVideoView extends FrameLayout {
     OnKeyInterceptListener onKeyIntercept;
     OnLoadingStateChangedListener onLoadingStateChangedListener;
     OnPreparedListener onPrepared;
+
+    private boolean subtitlesEnabled = false;
 
     final Runnable dispatchNotLoadingRunnable = new Runnable() {
         @Override
@@ -140,6 +151,9 @@ public class VlcVideoView extends FrameLayout {
 
         surfaceFrame.addView(playerView = new SurfaceView(context));
         surfaceFrame.addView(subtitlesView = new SurfaceView(context));
+
+        subtitlesView.setZOrderMediaOverlay(true);
+        subtitlesView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
 
         addView(surfaceFrame, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -233,6 +247,34 @@ public class VlcVideoView extends FrameLayout {
 
     public void setOnPreparedListener(OnPreparedListener listener) {
         onPrepared = listener;
+    }
+
+    public boolean areSubtitlesEnabled() {
+        return subtitlesEnabled;
+    }
+
+    public void setSubtitlesEnabled(boolean subtitlesEnabled) {
+        this.subtitlesEnabled = subtitlesEnabled;
+
+        // TODO support selecting a non-default subtitle track
+
+        final MediaPlayer player = this.player;
+        if (player != null) {
+            final MediaPlayer.TrackDescription[] tracks = player.getSpuTracks();
+            if (tracks == null || tracks.length == 0) return;
+
+            MediaPlayer.TrackDescription defaultTrack = null;
+            for (MediaPlayer.TrackDescription track : tracks) {
+                if (track.id != -1) {
+                    defaultTrack = track;
+                    break;
+                }
+            }
+
+            if (defaultTrack != null) {
+                player.setSpuTrack(subtitlesEnabled ? defaultTrack.id : -1);
+            }
+        }
     }
 
     /**
@@ -450,6 +492,7 @@ public class VlcVideoView extends FrameLayout {
                     if (state < STATE_PLAYBACK) {
                         state = STATE_PLAYBACK;
 
+                        setSubtitlesEnabled(subtitlesEnabled);
                         final OnPreparedListener onPrepared = thisView.onPrepared;
                         if (onPrepared != null) {
                             onPrepared.onPrepared(thisView);
@@ -480,6 +523,7 @@ public class VlcVideoView extends FrameLayout {
 
         vlcOut.setVideoView(playerView);
         vlcOut.setSubtitlesView(subtitlesView);
+//        vlcOut.attachViews(videoLayoutListener);
         vlcOut.attachViews();
 
         player.setVideoTrackEnabled(true);
@@ -516,7 +560,8 @@ public class VlcVideoView extends FrameLayout {
         // should we cache this?
         return vlcInstance = new LibVLC(
             getContext().getApplicationContext(),
-            VlcOptions.get());
+            VlcOptions.get()
+        );
     }
 
     void notifyLoading(boolean isLoading) {

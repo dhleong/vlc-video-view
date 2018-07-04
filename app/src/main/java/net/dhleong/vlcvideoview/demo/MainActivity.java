@@ -76,6 +76,14 @@ public class MainActivity
         videoView.setOnPreparedListener(this);
         videoView.setOnLoadingStateChangedListener(this);
 
+        videoView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Log.v(TAG, "Toggle Subtitles");
+                videoView.setSubtitlesEnabled(!videoView.areSubtitlesEnabled());
+            }
+        });
+
         // for AndroidTV or something:
         videoView.setOnKeyInterceptListener(new VlcVideoView.OnKeyInterceptListener() {
             @Override
@@ -90,6 +98,11 @@ public class MainActivity
                         Log.v(TAG, "FORWARD");
                         videoView.skip(5000);
                         break;
+                    case KeyEvent.KEYCODE_DPAD_DOWN:
+                        Log.v(TAG, "Toggle Subtitles");
+                        videoView.setSubtitlesEnabled(!videoView.areSubtitlesEnabled());
+                    default:
+                        Log.v(TAG, "key = " + event.getKeyCode());
                     }
                 }
                 return false;
@@ -97,6 +110,7 @@ public class MainActivity
         });
 
         final String[] URLS = {
+            "https://github.com/Matroska-Org/matroska-test-files/blob/master/test_files/test5.mkv?raw=true",
             "http://archive.org/download/BigBuckBunny_328/BigBuckBunny.avi",
             "http://commondatastorage.googleapis.com/android-tv/" +
                 "Sample%20videos/Demo%20Slam/Google%20Demo%20Slam_%2020ft%20Search.mp4"
